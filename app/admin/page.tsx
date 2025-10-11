@@ -1,14 +1,38 @@
 "use client"
 
-import { AdminDashboard } from "@/components/admin-dashboard";
-import React from "react";
+import { useState } from "react"
+import  Overview  from "./components/overview"
+import  StaffManagement  from "./components/staff-management"
+import  MenuManagement  from "./components/menu-management"
+import  TableManagement  from "./components/table-management"
+import { Button } from "@/components/ui/button"
 
 export default function AdminPage() {
-    const fakeUser = {username: "adminPOS", role: "admin"}
+  const [activeTab, setActiveTab] = useState("overview")
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "overview":
+        return <Overview />
+      case "staff":
+        return <StaffManagement />
+      case "menu":
+        return <MenuManagement />
+      case "table":
+        return <TableManagement />
+      default:
+        return <Overview />
+    }
+  }
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
-      <AdminDashboard user={fakeUser} onBack={() => console.log("Back button clicked")}/>
+    <div className="flex min-h-screen">
+      
+
+      {/* Nội dung */}
+      <main className="flex-1 p-6">
+        {renderContent()}
+      </main>
     </div>
   )
 }
