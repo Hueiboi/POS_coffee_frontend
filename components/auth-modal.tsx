@@ -10,10 +10,20 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
+import { useAPI } from "@/hooks/use-api"
 
 interface AuthModalProps {
   isOpen: boolean
   onAuthSuccess: (data: { access_token: string }) => void
+}
+
+interface LoginResponse {
+  status: string;
+  msg: string;
+  data: {
+    access_token: string;
+  };
 }
 
 export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
@@ -22,83 +32,26 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const { post } = useAPI();
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setIsLoading(true)
-  setError("")
+    e.preventDefault(); 
+    const res = await post<LoginResponse>("/auth/login", { username, password });
+    if (res?.data?.access_token) {
+      localStorage.setItem("token", res.data.access_token);
 
-  try {
-    const baseUrl =
-      process.env.NODE_ENV === "development"
-        ? "http://localhost:3000/api"
-        : "https://your-production-domain.com" // nên có URL rõ ràng
+      // decode role (nếu backend chưa trả role thẳng)
+      const payload = JSON.parse(atob(res.data.access_token.split(".")[1]));
+      const role = payload.role;
 
-    const response = await fetch(`${baseUrl}/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password }),
-    })
-
-    console.log("[v0] Login response status:", response.status)
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      const message =
-        data?.message || "Failed to sign in. Please check your credentials."
-      setError(message)
-      return
+      if (role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push("/pos");
+      }
     }
-
-    const accessToken = data?.data?.access_token
-
-    if (!accessToken) {
-      throw new Error("No access token in response")
-    }
-
-    // Lưu token và user tạm
-    localStorage.setItem("token", accessToken)
-    localStorage.setItem(
-      "user",
-      JSON.stringify({
-        username,
-        role: username.toLowerCase().includes("admin") ? "admin" : "staff",
-      }),
-    )
-
-    console.log("[v0] Login successful:", accessToken)
-    onAuthSuccess({ access_token: accessToken })
-  } catch (error: any) {
-    console.error("[v0] Login error:", error)
-
-    const ALLOW_DEMO_LOGIN = false
-
-    if (ALLOW_DEMO_LOGIN) {
-      console.log("[v0] Using demo mode login")
-
-      const mockToken = "demo-token-" + Date.now()
-
-      localStorage.setItem("token", mockToken)
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          username,
-          role: username.toLowerCase().includes("admin") ? "admin" : "staff",
-          id: Date.now(),
-        }),
-      )
-
-      onAuthSuccess({ access_token: mockToken })
-    } else {
-      setError("Unable to login. Please check your credentials.")
-    }
-  } finally {
-    setIsLoading(false) // luôn reset loading
-  }
-}
+  };
 
   return (
     <Dialog open={isOpen}>

@@ -42,6 +42,7 @@ export function ProductMenu({ selectedCategory, onCategoryChange, onAddToOrder }
     return selectedCategory === "All" ? products : products.filter((p) => p.category === selectedCategory)
   }, [products, selectedCategory])
 
+  // Ghi nhớ hàm fetch sản phẩm theo category, dùng trong useEffect để tránh gọi lại không cần thiết
   const fetchProducts = useCallback(async () => {
     const endpoint = selectedCategory === "All" ? "/menu" : `/menu?category=${selectedCategory}`
     const res: { data: Product[] } | null = await get<{ data: Product[] }>(endpoint)
@@ -60,6 +61,7 @@ export function ProductMenu({ selectedCategory, onCategoryChange, onAddToOrder }
     fetchProducts()
   }, [fetchProducts])
 
+  // Ghi nhớ hàm thêm sản phẩm vào đơn hàng, tránh tạo lại mỗi lần render
   const handleAddToOrder = useCallback(
     (product: Product) => {
       onAddToOrder({

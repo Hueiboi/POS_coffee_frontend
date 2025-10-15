@@ -7,10 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, Coffee, Users, Table as TableIcon } from "lucide-react"
 
-/**
- * Interface khớp với response backend hiện tại:
- * GET /report/revenue  trả về { status: "success", data: { total_revenue, order_count }, msg }
- */
+// GET /report/revenue  trả về { status: "success", data: { total_revenue, order_count }, msg }
 interface ReportBackend {
   total_revenue: number | null
   order_count: number | null
@@ -21,7 +18,6 @@ interface ReportResponse {
   msg?: string
 }
 
-/** UI-friendly report model (dùng trong component) */
 interface Report {
   totalRevenue: number
   totalOrders: number
@@ -29,17 +25,13 @@ interface Report {
   topItems?: string[] // nếu backend có sau này
 }
 
-/** Staff (tương ứng với bảng users trả về for staff) */
 export interface Staff {
   id: number
   username: string
   role: "staff" | "admin"
   email?: string
-  // nếu bạn có staff_name hoặc full_name, thêm ở đây:
-  full_name?: string
 }
 
-/** Table model */
 export interface TableModel {
   id: number
   table_number: string
@@ -50,6 +42,7 @@ export interface TableModel {
 export default function Overview() {
   const { get } = useAPI()
 
+  // State gốc
   const [report, setReport] = useState<Report>({
     totalRevenue: 0,
     totalOrders: 0,
@@ -61,87 +54,70 @@ export default function Overview() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
+  // Fetch data
   useEffect(() => {
-    let mounted = true
-
+    // Mount để tránh setState khi component đã unmount
+    let mounted = true // Biến để kiểm tra component còn mounted hay không
     const fetchAll = async () => {
       setLoading(true)
       setError(null)
       try {
-        // 1) Fetch report
-        try {
-          const res = await get<ReportResponse>("/report/revenue")
-          if (res?.status === "success" && res.data) {
-            const backend = res.data
-            const mapped: Report = {
-              totalRevenue: Number(backend.total_revenue) || 0,
-              totalOrders: Number(backend.order_count) || 0,
-              weeklyGrowth: 0,
-              topItems: [],
-            }
-            if (mounted) setReport(mapped)
-          } else {
-            // backend trả error hoặc format khác -> keep defaults
-            console.warn("Report endpoint returned unexpected shape:", res)
-          }
-        } catch (err) {
-          console.warn("Failed to fetch report:", err)
+        // Dùng Promise.allSettled để fetch song song 3 API
+        const [reportRes, staffRes, tableRes] = await Promise.allSettled([
+          get<ReportResponse>("/report/revenue"),
+          get<{ data?: Staff[] }>("/users/all?role=staff"),
+          get<{ data?: TableModel[] }>("/tables")
+        ])
+
+        if (!mounted) return
+
+        // Report
+        // Dùng fulfilled để chắc chắn không bị lỗi, nếu bị lỗi thì không làm gì
+        if (reportRes.status === "fulfilled" && reportRes.value?.data) {
+          const backend = reportRes.value.data
+          setReport({
+            totalRevenue: Number(backend.total_revenue) || 0,
+            totalOrders: Number(backend.order_count) || 0,
+            weeklyGrowth: 5,
+            topItems: ["Espresso", "Cappuccino", "Latte"]
+          })
         }
 
-        // 2) Fetch staff list (filter role=staff)
-        try {
-          // API assumed: GET /user?role=staff
-          const resStaff = await get<{ status?: string; data?: Staff[] }>(`/user?role=staff`)
-          // depending on your API, resStaff may be { status, data } or just array
-          if (Array.isArray(resStaff)) {
-            if (mounted) setStaff(resStaff as Staff[])
-          } else if (resStaff?.data && Array.isArray(resStaff.data)) {
-            if (mounted) setStaff(resStaff.data as Staff[])
-          } else {
-            console.warn("Staff endpoint returned unexpected shape:", resStaff)
-          }
-        } catch (err) {
-          console.warn("Failed to fetch staff:", err)
+        // Staff
+        if (staffRes.status === "fulfilled") {
+          const data = staffRes.value.data || []
+          setStaff(Array.isArray(data) ? data : [])
         }
 
-        // 3) Fetch tables
-        try {
-          const resTables = await get<{ status?: string; data?: TableModel[] }>(`/tables`)
-          if (Array.isArray(resTables)) {
-            if (mounted) setTables(resTables as TableModel[])
-          } else if (resTables?.data && Array.isArray(resTables.data)) {
-            if (mounted) setTables(resTables.data as TableModel[])
-          } else {
-            console.warn("Tables endpoint returned unexpected shape:", resTables)
-          }
-        } catch (err) {
-          console.warn("Failed to fetch tables:", err)
+        // Tables
+        if (tableRes.status === "fulfilled") {
+          const data = tableRes.value.data || []
+          setTables(Array.isArray(data) ? data : [])
         }
+
       } catch (err: any) {
-        if (mounted) setError(err?.message || "Error fetching overview data")
+        if (mounted) setError(err.message || "Error fetching data")
       } finally {
         if (mounted) setLoading(false)
       }
     }
 
     fetchAll()
-
-    return () => {
-      mounted = false
-    }
+    return () => { mounted = false }
   }, [get])
 
-  // Derived values (memoized)
+  
+  // Format theo tiền tệ Việt Nam, chỉ tính lại khi giá trị thay đổi
   const totalRevenueText = useMemo(
     () => (report.totalRevenue || 0).toLocaleString("vi-VN"),
     [report.totalRevenue],
-  )
+  );
 
+  // Đếm số bàn trống, chỉ tính lại khi danh sách bàn thay đổi
   const availableTablesCount = useMemo(
     () => tables.filter((t) => t.status === "available").length,
     [tables],
-  )
+  );
 
   // UI
   if (loading) {

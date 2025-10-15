@@ -5,8 +5,9 @@ const BASE_URL = "http://localhost:3000/api" // hoặc import.meta.env.NEXT_PUBL
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
-  token?: string
 ): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
