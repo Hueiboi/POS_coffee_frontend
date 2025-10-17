@@ -23,6 +23,7 @@ interface LoginResponse {
   msg: string;
   data: {
     access_token: string;
+    refresh_token: string;
   };
 }
 
@@ -40,6 +41,7 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
     const res = await post<LoginResponse>("/auth/login", { username, password });
     if (res?.data?.access_token) {
       localStorage.setItem("token", res.data.access_token);
+      localStorage.setItem("refresh_token", res.data.refresh_token)
 
       // decode role (nếu backend chưa trả role thẳng)
       const payload = JSON.parse(atob(res.data.access_token.split(".")[1]));

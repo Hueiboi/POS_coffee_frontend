@@ -232,9 +232,20 @@ và được cập nhật qua hook, đảm bảo UI luôn đồng bộ logic.
 - Gặp lỗi logic ->	Debug ở hook, không cần vào UI
 => “Nếu hệ thống dễ debug, dễ mở rộng — nghĩa là bạn đang thiết kế đúng.”
 
-## Kết luận
-Kiến trúc này có thể áp dụng cho bất kỳ dự án web nào:
-Quản lý sản phẩm, hóa đơn, khuyến mãi, khách hàng
-Học tập, portfolio, hay hệ thống nội bộ nhỏ
-Tư tưởng cốt lõi là:
-“Chia nhỏ để dễ hiểu, kết nối để mạnh mẽ.”
+## Vấn đề
+### Điều hướng trong UI với usePathname, useRouter và redirect
+🔹 usePathname
+- Dùng để lấy đường dẫn hiện tại.
+- Giúp xác định tab nào đang được chọn để highlight trong sidebar.
+🔹 useRouter + router.push
+- Dùng để điều hướng người dùng khi thực hiện hành động (ví dụ: logout).
+- router.push("/") sẽ chuyển về trang chủ sau khi xóa token.
+🔹 redirect (server-side)
+- Dùng trong AdminIndex để chuyển hướng ngay khi người dùng truy cập /admin.
+- Giúp điều hướng thẳng đến /admin/overview mà không cần hiển thị gì.
+🔹 Giao diện sidebar
+- Hiển thị các tab quản trị như Overview, Staff, Menu, Tables, Reports.
+- Tab đang chọn được highlight dựa trên pathname.
+🔹 Bảo mật & UX
+- Khi logout, token bị xóa khỏi localStorage và người dùng được chuyển về trang chủ.
+- Có thể kết hợp thêm kiểm tra token để chặn truy cập trái phép từ layout hoặc middleware.
