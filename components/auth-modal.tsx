@@ -12,6 +12,7 @@ import { Loader2, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { useAPI } from "@/hooks/use-api"
+import { notify } from "@/lib/notify"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -37,21 +38,32 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); 
-    const res = await post<LoginResponse>("/auth/login", { username, password });
-    if (res?.data?.access_token) {
-      localStorage.setItem("token", res.data.access_token);
-      localStorage.setItem("refresh_token", res.data.refresh_token)
+    e.preventDefault();
+    try {
+      const res = await post<LoginResponse>("/auth/login", { username, password });
 
-      // decode role (nếu backend chưa trả role thẳng)
-      const payload = JSON.parse(atob(res.data.access_token.split(".")[1]));
-      const role = payload.role;
+      if (res?.data?.access_token) {
+        localStorage.setItem("token", res.data.access_token);
+        localStorage.setItem("refresh_token", res.data.refresh_token);
 
-      if (role === "admin") {
-        router.push("/admin");
+        const payload = JSON.parse(atob(res.data.access_token.split(".")[1]));
+        const role = payload.role;
+
+        if (role === "admin") {
+          router.push("/admin");
+          notify.success("Welcome, admin!");
+        } else {
+          router.push("/pos");
+          notify.success("Login successful!");
+        }
+
+        onAuthSuccess(res.data);
       } else {
-        router.push("/pos");
+        notify.error("Invalid response from server");
       }
+    } catch (err: any) {
+      notify.error("Invalid username or password");
+      console.error("[Login error]:", err);
     }
   };
 
