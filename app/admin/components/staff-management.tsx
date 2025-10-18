@@ -6,8 +6,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Edit, Trash2 } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react"
 import { useAPI } from "@/hooks/use-api"
 
 export interface Staff {
@@ -26,7 +26,15 @@ export default function StaffManagement() {
   const [showAddStaff, setShowAddStaff] = useState(false)
   const [newUsername, setNewUsername] = useState("")
   const [newEmail, setNewEmail] = useState("")
+  const [newPassword, setNewPassword] = useState("")
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
+  const [showPassword, setShowPassword] = useState(false);
+  const [newStaff, setNewStaff] = useState({
+    username: "",
+    email: "",
+    password: "",
+    address: "",
+  });
 
   // Lấy danh sách nhân viên
   useEffect(() => {
@@ -44,47 +52,44 @@ export default function StaffManagement() {
 
   // Thêm nhân viên mới
   const handleAddStaff = async () => {
-    if (!newUsername) {
-      alert("Please enter a username.")
-      return
+    if (!newStaff.username || !newStaff.password || newStaff.password.length < 6) {
+      alert("Please enter a valid username and password (min 6 characters)");
+      return;
     }
+
     try {
-      await post("/users", {
-        username: newUsername,
-        email: newEmail || `${newUsername}@example.com`,
-      })
-      fetchStaff()
-      setShowAddStaff(false)
-      setNewUsername("")
-      setNewEmail("")
-    } catch (err) {
-      console.error("Error adding staff:", err)
+      const res = await post<{ data?: Staff }>("/users", newStaff);
+      if (res?.data) {
+        setStaff([...staff, res.data]);
+        setShowAddStaff(false);
+        setNewStaff({ username: "", email: "", password: "", address: "" });
+      }
+    } catch (error) {
+      console.error("Failed to add staff:", error);
     }
-  }
+  };
 
   // Chỉnh sửa nhân viên
   const handleEditStaff = async () => {
-    if (!editingStaff) return;
-  
+    if (!editingStaff) return
     try {
       const payload: any = {
         username: editingStaff.username,
         email: editingStaff.email,
         role: editingStaff.role,
-      };
-  
-      // chỉ gửi password nếu người dùng nhập mới
-      if (editingStaff.password && editingStaff.password.length >= 6) {
-        payload.password = editingStaff.password;
       }
-  
-      await put(`/users/${editingStaff.id}`, payload);
-      fetchStaff(); // reload danh sách
-      setEditingStaff(null);
+
+      if (editingStaff.password?.trim()) {
+        payload.password = editingStaff.password
+      }
+
+      await put(`/users/${editingStaff.id}`, payload)
+      fetchStaff()
+      setEditingStaff(null)
     } catch (err) {
-      console.error("Error editing staff:", err);
+      console.error("Error editing staff:", err)
     }
-  };
+  }
   
 
   // Xóa nhân viên
@@ -135,29 +140,76 @@ export default function StaffManagement() {
 
       {/* Dialog Add */}
       <Dialog open={showAddStaff} onOpenChange={setShowAddStaff}>
+        <DialogTrigger asChild>
+        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Staff</DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4">
             <div>
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
                 placeholder="Enter username"
-                value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value)}
+                value={newStaff.username}
+                onChange={(e) => setNewStaff({ ...newStaff, username: e.target.value })}
               />
             </div>
+
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                type="email"
                 placeholder="Enter email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
+                value={newStaff.email}
+                onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
               />
             </div>
+
+            {/* Password input with show/hide toggle */}
+            <div className="relative">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter password"
+                value={newStaff.password}
+                onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
+                className={newStaff.password && newStaff.password.length < 6 ? "border-red-500" : ""}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-6 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                )}
+              </Button>
+            </div>
+
+            {newStaff.password && newStaff.password.length < 6 && (
+              <p className="text-red-500 text-sm">Password must be at least 6 characters.</p>
+            )}
+
+            <div>
+              <Label htmlFor="address">Address (optional)</Label>
+              <Input
+                id="address"
+                placeholder="Enter address"
+                value={newStaff.address}
+                onChange={(e) => setNewStaff({ ...newStaff, address: e.target.value })}
+              />
+            </div>
+
             <Button className="w-full" onClick={handleAddStaff}>
               Add Staff
             </Button>
@@ -183,6 +235,18 @@ export default function StaffManagement() {
                   }
                 />
               </div>
+              <div>
+              <Label htmlFor="password">Password (optional)</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter new password if you want to change"
+                value={editingStaff?.password || ""}
+                onChange={(e) =>
+                  setEditingStaff((prev) => prev && { ...prev, password: e.target.value })
+                }
+              />
+            </div>
               <div>
                 <Label htmlFor="editEmail">Email</Label>
                 <Input

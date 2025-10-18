@@ -249,3 +249,5 @@ và được cập nhật qua hook, đảm bảo UI luôn đồng bộ logic.
 🔹 Bảo mật & UX
 - Khi logout, token bị xóa khỏi localStorage và người dùng được chuyển về trang chủ.
 - Có thể kết hợp thêm kiểm tra token để chặn truy cập trái phép từ layout hoặc middleware.
+
+### Lỗi UX khi nhập sai mật khẩu, không trả về bằng UI mà hiện lỗi console

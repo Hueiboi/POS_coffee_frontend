@@ -59,7 +59,7 @@ export default function TableManagement() {
 
     // Xử lý logic thêm bàn mới, truyền dữ liệu đến API
     try {
-      const res = await post("/tables", {
+      const res = await post(`/tables`, {
         table_number: newTableNumber,
         status: "available",
       })
