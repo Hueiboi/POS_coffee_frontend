@@ -15,7 +15,7 @@ import {
 import { Plus, Trash2, Percent, Gift } from "lucide-react"
 import { usePromotionList } from "@/hooks/use-promotion-list"
 import type { Promotion } from "@/hooks/use-promotion"
-import { toast } from "./ui/use-toast"
+import { notify } from "@/lib/notify"
 
 interface PromotionsManagementProps {
   onBack: () => void
@@ -51,17 +51,10 @@ export function PromotionsManagement({ onBack, onApplyPromotion }: PromotionsMan
       })
 
       setShowAddPromo(false)
-      toast({
-        title: "✅ Promotion added",
-        description: `${newPromo.name} (${newPromo.value}% off) has been created.`,
-      })
-    } catch (error) {
-      console.error("Error adding promotion:", error)
-      toast({
-        title: "❌ Failed to add promotion",
-        description: "An error occurred while saving. Please try again.",
-        variant: "destructive",
-      })
+      notify.success("Promotion added")
+    } catch (err) {
+      notify.error("Error adding promotion")
+      console.error(err)
     }
   }
 

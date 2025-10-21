@@ -16,6 +16,7 @@ import { Table } from "@/hooks/use-table-management"
 import type { Invoice, InvoiceOrder, InvoiceItem } from "@/components/invoice-modal" // Use the correct Invoice type expected by InvoiceModal
 import { transformInvoiceData } from "@/lib/utils"
 import { Promotion } from "@/hooks/use-promotion"    
+import { notify } from "@/lib/notify"
 
 export default function POSPage() {
   const { post, put, get } = useAPI()
@@ -187,7 +188,7 @@ export default function POSPage() {
   // Payment
   const handlePrintAndPay = async (paymentMethod: PaymentMethod, total: number) => {
     if (!selectedTable || orderItems.length === 0) {
-      alert("Please select a table and add items before printing")
+      notify.error("Please select a table and add items before printing")
       return
     }
 
@@ -252,8 +253,8 @@ export default function POSPage() {
       await updateTableStatus(selectedTable.id, "occupied")
       setSelectedTable((prev) => (prev ? { ...prev, status: "occupied" } : null))
     } catch (err) {
-      console.error("[FE] Print & Pay error:", err)
-      alert("Failed to process invoice. Please try again.")
+      notify.error("Failed to process invoice. Please try again.")
+      console.error(err)
     }
   }
 
@@ -279,7 +280,8 @@ export default function POSPage() {
         clearOrder()
       }
     } catch (err) {
-      console.error("Failed to free table:", err)
+      notify.error("Failed to free table")
+      console.error(err)
     }
   }
 

@@ -63,7 +63,7 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
       }
     } catch (err: any) {
       notify.error("Invalid username or password");
-      console.error("[Login error]:", err);
+      console.error(err);
     }
   };
 

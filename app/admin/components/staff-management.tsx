@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react"
 import { useAPI } from "@/hooks/use-api"
+import { notify } from "@/lib/notify"
+import { useConfirm } from "@/hooks/use-confirm"
 
 export interface Staff {
   id: number
@@ -35,7 +37,8 @@ export default function StaffManagement() {
     password: "",
     address: "",
   });
-
+  const {confirm, ConfirmDialog} = useConfirm();
+  
   // Lấy danh sách nhân viên
   useEffect(() => {
     fetchStaff()
@@ -46,14 +49,14 @@ export default function StaffManagement() {
       const res = await get<{ data?: Staff[] }>("/users/all?role=staff")
       if (Array.isArray(res?.data)) setStaff(res.data)
     } catch (err) {
-      console.error("Failed to fetch staff:", err)
+      notify.error("Failed to fetch staff")
     }
   }
 
   // Thêm nhân viên mới
   const handleAddStaff = async () => {
     if (!newStaff.username || !newStaff.password || newStaff.password.length < 6) {
-      alert("Please enter a valid username and password (min 6 characters)");
+      notify.error("Please enter a valid username and password (min 6 characters)");
       return;
     }
 
@@ -64,13 +67,15 @@ export default function StaffManagement() {
         setShowAddStaff(false);
         setNewStaff({ username: "", email: "", password: "", address: "" });
       }
-    } catch (error) {
-      console.error("Failed to add staff:", error);
+    } catch (err) {
+      notify.error("Failed to add staff:");
+      console.error(err)
     }
   };
 
   // Chỉnh sửa nhân viên
   const handleEditStaff = async () => {
+    
     if (!editingStaff) return
     try {
       const payload: any = {
@@ -87,19 +92,22 @@ export default function StaffManagement() {
       fetchStaff()
       setEditingStaff(null)
     } catch (err) {
-      console.error("Error editing staff:", err)
+      notify.error("Error editing staff")
+      console.error(err)
     }
   }
   
 
   // Xóa nhân viên
   const handleDeleteStaff = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this staff?")) return
+    const ok = await confirm("Are you sure you want to delete this staff?")
+    if (!ok) return
     try {
       await del(`/users/${id}`)
       setStaff(staff.filter((s) => s.id !== id))
     } catch (err) {
-      console.error("Error deleting staff:", err)
+      notify.error("Error deleting staff")
+      console.error(err)
     }
   }
 

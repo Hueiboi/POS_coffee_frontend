@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Edit, Trash2 } from "lucide-react"
 import { useAPI } from "@/hooks/use-api"
+import { notify } from "@/lib/notify"
+import { useConfirm } from "@/hooks/use-confirm"
 
 export interface Menu {
   id: number
@@ -25,8 +27,8 @@ export default function MenuManagement() {
   const [newName, setNewName] = useState("")
   const [newPrice, setNewPrice] = useState<number | string>("")
   const [newCategory, setNewCategory] = useState("Coffee")
-
   const [editingItem, setEditingItem] = useState<Menu | null>(null)
+  const {confirm, ConfirmDialog} = useConfirm();
 
   // Fetch danh sách menu
   useEffect(() => {
@@ -38,14 +40,15 @@ export default function MenuManagement() {
       const res = await get<{ data?: Menu[] }>("/menu")
       if (Array.isArray(res?.data)) setMenu(res.data)
     } catch (err) {
-      console.error("Failed to fetch menu:", err)
+      notify.error("Failed to fetch menu")
+      console.error(err);
     }
   }
 
   // Thêm item
   const handleAddMenu = async () => {
     if (!newName || !newPrice) {
-      alert("Please enter name and price.")
+      notify.error("Please enter name and price.")
       return
     }
     try {
@@ -59,7 +62,8 @@ export default function MenuManagement() {
       setNewName("")
       setNewPrice("")
     } catch (err) {
-      console.error("Error adding menu item:", err)
+      notify.error("Error adding menu item")
+      console.error(err)
     }
   }
 
@@ -75,18 +79,21 @@ export default function MenuManagement() {
       fetchMenu()
       setEditingItem(null)
     } catch (err) {
-      console.error("Error editing menu:", err)
+      notify.error("Error editing menu")
+      console.error(err)
     }
   }
 
   // Delete item
   const handleDeleteMenu = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this item?")) return
+    const ok = await confirm("Are you sure you want to delete this item?")
+    if (!ok) return
     try {
       await del(`/menu/${id}`)
       setMenu(menu.filter((m) => m.id !== id))
     } catch (err) {
-      console.error("Error deleting menu item:", err)
+      notify.error("Error deleting menu item")
+      console.error(err)
     }
   }
 

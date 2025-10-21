@@ -13,6 +13,7 @@ import { useCurrency } from "@/hooks/use-currency"
 import { PaymentMethod, usePayment } from "@/hooks/use-payment"
 import { cn } from "@/lib/utils"
 import { Table } from "@/types"
+import { notify } from "@/lib/notify"
 
 
 interface OrderSummaryProps {
@@ -234,7 +235,7 @@ export function OrderSummary({
           <Button
             onClick={() => {
               if (!selectedPaymentMethod) {
-                alert("Please select a payment method")
+                notify.error("Please select a payment method")
                 return
               }
               onPrintBill(selectedPaymentMethod.id as "cash" | "card" | "e-wallet", total)

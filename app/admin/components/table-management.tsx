@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Plus, Edit, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useAPI } from "@/hooks/use-api"
+import { notify } from "@/lib/notify"
+import { useConfirm } from "@/hooks/use-confirm"
 
 export interface Table {
   id: number
@@ -19,13 +21,10 @@ export interface Table {
 export default function TableManagement() {
   const { get, put, post, del } = useAPI()
   const [tables, setTables] = useState<Table[]>([])
-
-  // State để điều khiển hiển thị dialog thêm bàn
   const [showAddTable, setShowAddTable] = useState(false)
   const [newTableNumber, setNewTableNumber] = useState("")
-
-  // Trạng thái edit
   const [editingTable, setEditingTable] = useState<Table | null>(null)
+  const {confirm, ConfirmDialog} = useConfirm();
 
   // Lấy danh sách bàn từ API khi component được mount
   useEffect(() => {
@@ -45,15 +44,16 @@ export default function TableManagement() {
       } else {
         console.warn("Unexpected tables shape:", data)
       }
-    } catch (error) {
-      console.error("Failed to fetch tables:", error)
+    } catch (err) {
+      notify.error("Failed to fetch tables")
+      console.error(err)
     }
   }
 
   // Hàm xử lý khi thêm bàn mới
   const handleAddTable = async () => {
     if (!newTableNumber) {
-      alert("Please provide a valid table number.")
+      notify.error("Please provide a valid table number.")
       return
     }
 
@@ -70,8 +70,9 @@ export default function TableManagement() {
         setShowAddTable(false)
         setNewTableNumber("")
       }
-    } catch (error) {
-      console.error("Failed to add table:", error)
+    } catch (err) {
+      notify.error("Failed to add table")
+      console.error(err)
     }
   }
 
@@ -86,19 +87,23 @@ export default function TableManagement() {
       fetchTables()
       setEditingTable(null)
     } catch (err) {
-      console.error("Error editing table:", err)
+      notify.error("Error editing table")
+      console.error(err)
     }
   }
 
   // Hàm xử lý khi xóa bàn
   const handleDeleteTable = async (tableId: number) => {
+    const ok = await confirm("Are you sure you want to delete this table?")
+    if (!ok) return
     if (!confirm("Are you sure you want to delete this table?")) return
     try {
       const res = await del(`/tables/${tableId}`)
       // Khi tableId bị xóa không còn trong danh sách thì component sẽ tự động render lại
       if (res) setTables(tables.filter((table) => table.id !== tableId))
-    } catch (error) {
-      console.error("Failed to delete table:", error)
+    } catch (err) {
+      notify.error("Failed to delete table")
+      console.error(err)
     }
   }
 

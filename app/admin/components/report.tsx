@@ -6,6 +6,7 @@ import { useAPI } from "@/hooks/use-api"
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from "recharts"
 import { Button } from "@/components/ui/button"
 import { RefreshCw } from "lucide-react"
+import { notify } from "@/lib/notify"
 
 interface RevenueResponse {
     status: string; 
@@ -40,7 +41,7 @@ export default function Report() {
       setData(mockData);
       setTotalRevenue(revenue)
     } catch (err) {
-      console.error("[Report fetch error]:", err)
+      notify.error("Report fetch error")
     } finally {
       setLoading(false)
     }
