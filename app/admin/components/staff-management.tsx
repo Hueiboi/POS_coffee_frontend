@@ -66,6 +66,7 @@ export default function StaffManagement() {
         setStaff([...staff, res.data]);
         setShowAddStaff(false);
         setNewStaff({ username: "", email: "", password: "", address: "" });
+        notify.success("Add staff successfully")
       }
     } catch (err) {
       notify.error("Failed to add staff:");
@@ -91,6 +92,7 @@ export default function StaffManagement() {
       await put(`/users/${editingStaff.id}`, payload)
       fetchStaff()
       setEditingStaff(null)
+      notify.success("Edit staff successfully")
     } catch (err) {
       notify.error("Error editing staff")
       console.error(err)
@@ -105,6 +107,7 @@ export default function StaffManagement() {
     try {
       await del(`/users/${id}`)
       setStaff(staff.filter((s) => s.id !== id))
+      notify.success("Delete staff successfully")
     } catch (err) {
       notify.error("Error deleting staff")
       console.error(err)
@@ -241,20 +244,38 @@ export default function StaffManagement() {
                   onChange={(e) =>
                     setEditingStaff((prev) => prev && { ...prev, username: e.target.value })
                   }
+                  
                 />
               </div>
               <div>
-              <Label htmlFor="password">Password (optional)</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter new password if you want to change"
-                value={editingStaff?.password || ""}
-                onChange={(e) =>
-                  setEditingStaff((prev) => prev && { ...prev, password: e.target.value })
-                }
-              />
-            </div>
+                <Label htmlFor="password">Password (optional)</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter new password if you want to change"
+                    value={editingStaff?.password || ""}
+                    onChange={(e) =>
+                      setEditingStaff((prev) => prev && { ...prev, password: e.target.value })
+                    }
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
+              </div>
               <div>
                 <Label htmlFor="editEmail">Email</Label>
                 <Input

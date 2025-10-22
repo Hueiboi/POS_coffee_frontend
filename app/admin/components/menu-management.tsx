@@ -26,6 +26,7 @@ export default function MenuManagement() {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState("")
   const [newPrice, setNewPrice] = useState<number | string>("")
+  const [newQty, setNewQty] = useState<number | "">("");
   const [newCategory, setNewCategory] = useState("Coffee")
   const [editingItem, setEditingItem] = useState<Menu | null>(null)
   const {confirm, ConfirmDialog} = useConfirm();
@@ -47,20 +48,27 @@ export default function MenuManagement() {
 
   // Thêm item
   const handleAddMenu = async () => {
-    if (!newName || !newPrice) {
-      notify.error("Please enter name and price.")
+    if (!newName || Number(newPrice) <= 0) {
+      notify.error("Please enter valid name and price.")
+      return
+    }
+    if (newQty === "" || Number(newQty) < 0) {
+      notify.error("Please enter valid stock quantity.")
       return
     }
     try {
       await post("/menu", {
         name: newName,
         price: Number(newPrice),
-        category: newCategory,
+        stock_quantity: newQty,
+        category: newCategory
       })
       fetchMenu()
       setShowAdd(false)
       setNewName("")
       setNewPrice("")
+      setNewQty("")
+      notify.success("Add item successfully")
     } catch (err) {
       notify.error("Error adding menu item")
       console.error(err)
@@ -69,15 +77,25 @@ export default function MenuManagement() {
 
   // Edit item
   const handleEditMenu = async () => {
+    if (!newName || Number(newPrice) <= 0) {
+      notify.error("Please enter valid name and price.")
+      return
+    }
+    if (newQty === "" || Number(newQty) < 0) {
+      notify.error("Please enter valid stock quantity.")
+      return
+    }
     if (!editingItem) return
     try {
       await put(`/menu/${editingItem.id}`, {
         name: editingItem.name,
         price: editingItem.price,
-        category: editingItem.category,
+        stock_quantity: editingItem.stock_quantity,
+        category: editingItem.category
       })
       fetchMenu()
       setEditingItem(null)
+      notify.success("Edit item successfully")
     } catch (err) {
       notify.error("Error editing menu")
       console.error(err)
@@ -91,6 +109,7 @@ export default function MenuManagement() {
     try {
       await del(`/menu/${id}`)
       setMenu(menu.filter((m) => m.id !== id))
+      notify.success("Delete item successfully")
     } catch (err) {
       notify.error("Error deleting menu item")
       console.error(err)
@@ -114,6 +133,12 @@ export default function MenuManagement() {
             <CardContent className="p-4 flex justify-between items-center">
               <div>
                 <h4 className="font-semibold">{item.name}</h4>
+                <h5
+                  className={`font-semibold 
+                  ${item.stock_quantity as number > 25 ? "text-green-600" : 
+                  item.stock_quantity as number > 0 && item.stock_quantity as number <= 25 ? "text-orange-600": "text-red-600"}`}>
+                  Stock: {item.stock_quantity}
+                </h5>
                 <p className="text-sm text-muted-foreground">
                   {item.price.toLocaleString("vi-VN")}₫
                 </p>
@@ -149,15 +174,28 @@ export default function MenuManagement() {
                 onChange={(e) => setNewName(e.target.value)}
               />
             </div>
+
             <div>
               <Label htmlFor="price">Price (VND)</Label>
               <Input
                 id="price"
                 type="number"
                 value={newPrice}
-                onChange={(e) => setNewPrice(e.target.value)}
+                onChange={(e) => setNewPrice(Number(e.target.value))}
               />
             </div>
+
+            <div>
+              <Label htmlFor="stock">Stock</Label>
+              <Input
+                id="stock"
+                type="number"
+                value={newQty}
+                onChange={(e) => setNewQty(e.target.value === "" ? "": Number(e.target.value))}
+                min={0}
+              />
+            </div>
+
             <div>
               <Label htmlFor="category">Category</Label>
               <select
@@ -171,6 +209,7 @@ export default function MenuManagement() {
                 <option value="Snack">Snack</option>
               </select>
             </div>
+
             <Button className="w-full" onClick={handleAddMenu}>
               Add Item
             </Button>
@@ -196,6 +235,7 @@ export default function MenuManagement() {
                   }
                 />
               </div>
+
               <div>
                 <Label htmlFor="editPrice">Price (VND)</Label>
                 <Input
@@ -207,6 +247,17 @@ export default function MenuManagement() {
                   }
                 />
               </div>
+
+              <div>
+                <Label htmlFor="stock">Stock</Label>
+                <Input
+                  id="stock"
+                  type="number"
+                  value={editingItem.stock_quantity}
+                  onChange={(e) => setNewQty(Number(e.target.value))}
+                />
+              </div>
+
               <div>
                 <Label htmlFor="editCategory">Category</Label>
                 <select
