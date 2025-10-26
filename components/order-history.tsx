@@ -58,7 +58,6 @@ export function OrderHistory({ onBack, tableId }: OrderHistoryProps) {
         const response = await get<APIResponse<Order[]>>(
           `/orders/table/completed/${tableId}`
         )
-        console.log("📦 Raw orders from API:", response.data)
 
         const normalized = response.data.map((order) => ({
           ...order,

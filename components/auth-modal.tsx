@@ -16,7 +16,9 @@ import { notify } from "@/lib/notify"
 
 interface AuthModalProps {
   isOpen: boolean
-  onAuthSuccess: (data: { access_token: string }) => void
+  onAuthSuccess: (
+    data: { access_token: string },
+  ) => void
 }
 
 interface LoginResponse {
@@ -39,33 +41,43 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
     try {
       const res = await post<LoginResponse>("/auth/login", { username, password });
 
       if (res?.data?.access_token) {
-        localStorage.setItem("token", res.data.access_token);
-        localStorage.setItem("refresh_token", res.data.refresh_token);
+        const { access_token, refresh_token } = res.data;
 
-        const payload = JSON.parse(atob(res.data.access_token.split(".")[1]));
-        const role = payload.role;
+        // Lưu token
+        localStorage.setItem("token", access_token);
+        localStorage.setItem("refresh_token", refresh_token);
+        
+        // Giải mã token để lấy user
+        const payload = JSON.parse(atob(access_token.split(".")[1]));
+        const usernameFromToken = payload.username || username;
+        const role = payload.role ;
+        
+        // Lưu user vào localStorage để trang POS đọc lại
+        const user = { username: usernameFromToken, role };
+        localStorage.setItem("user", JSON.stringify(user));
 
-        if (role === "admin") {
-          router.push("/admin");
-          notify.success("Welcome, admin!");
-        } else {
-          router.push("/pos");
-          notify.success("Login successful!");
-        }
+        // Gọi callback để LoginPage nhận biết login xong
+        onAuthSuccess({ access_token });
 
-        onAuthSuccess(res.data);
+        notify.success("Login successful!");
       } else {
         notify.error("Invalid response from server");
       }
     } catch (err: any) {
-      notify.error("Invalid username or password");
       console.error(err);
+      notify.error("Invalid username or password");
+    } finally {
+      setIsLoading(false);
     }
   };
+
 
   return (
     <Dialog open={isOpen}>
@@ -161,13 +173,13 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
           </Button>
         </form>
 
-        <Alert className="bg-coffee-cream border-coffee-light">
+        {/* <Alert className="bg-coffee-cream border-coffee-light">
           <AlertCircle className="h-4 w-4 text-coffee-brown" />
           <AlertDescription className="text-coffee-brown text-xs">
             <strong>Demo Mode:</strong> Enter any username and password to continue. Use "admin" in username for admin
             access.
           </AlertDescription>
-        </Alert>
+        </Alert> */}
       </DialogContent>
     </Dialog>
   )

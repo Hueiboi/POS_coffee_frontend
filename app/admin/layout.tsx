@@ -12,7 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleLogout = () => {
     localStorage.removeItem("token")
-    router.push("/")
+    router.push("/pos")
   }
 
   const navItems = [
@@ -21,6 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: "/admin/menu", label: "Menu" },
     { href: "/admin/tables", label: "Tables" },
     { href: "/admin/reports", label: "Reports" },
+    { href: "/admin/promotions", label: "Promotions" }
   ]
 
   return (

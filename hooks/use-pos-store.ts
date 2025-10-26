@@ -103,22 +103,6 @@ export function usePOSStore() {
     setAppliedPromotion(null)
   }, [])
 
-  const login = useCallback((authData: AuthData) => {
-    setIsAuthenticated(true)
-    setUser(authData.user)
-    localStorage.setItem("token", authData.token)
-    localStorage.setItem("user", JSON.stringify(authData.user))
-  }, [])
-
-  const logout = useCallback(() => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
-    setIsAuthenticated(false)
-    setUser(null)
-    setSelectedTable(null)
-    clearOrder()
-  }, [clearOrder])
-
   // --- Export all states and actions ---
   return {
     // State
@@ -142,8 +126,6 @@ export function usePOSStore() {
     updateOrderItem,
     removeOrderItem,
     clearOrder,
-    login,
-    logout,
     setCurrentOrder,
     setSelectedTable,
     setAppliedPromotion,

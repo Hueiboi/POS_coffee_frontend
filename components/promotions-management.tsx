@@ -3,60 +3,49 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Trash2, Percent, Gift } from "lucide-react"
 import { usePromotionList } from "@/hooks/use-promotion-list"
+import { usePromotion } from "@/hooks/use-promotion"
 import type { Promotion } from "@/hooks/use-promotion"
 import { notify } from "@/lib/notify"
 
 interface PromotionsManagementProps {
   onBack: () => void
   onApplyPromotion?: (promo: Promotion) => void
+  role?: "staff" | "admin" | string
 }
 
-export function PromotionsManagement({ onBack, onApplyPromotion }: PromotionsManagementProps) {
-  const { promotions, loading, createPromotion, deletePromotion } = usePromotionList()
+export function PromotionsManagement({ onBack, onApplyPromotion}: PromotionsManagementProps) {
+  const { promotions, loading } = usePromotionList()
+  const { isPromotionValid } = usePromotion()
 
-  const [showAddPromo, setShowAddPromo] = useState(false)
-  const [newPromo, setNewPromo] = useState({
-    name: "",
-    value: 0,
-    start_date: "",
-    end_date: "",
-  })
+  const [selectedId, setSelectedId] = useState<number | null>(null)
 
+  const handleApply = (promo: Promotion) => {
+    if (!onApplyPromotion) {
+      notify.error("Apply handler not provided")
+      return
+    }
 
-  const handleAddPromotion = async () => {
+    // Kiểm tra khuyến mãi còn hiệu lực không
+    if (!isPromotionValid(promo)) {
+      notify.error("This promotion is not valid at the moment")
+      return
+    }
+
+    setSelectedId(promo.id)
     try {
-      await createPromotion({
-        name: newPromo.name,
-        discount_percentage: newPromo.value,
-        start_date: newPromo.start_date,
-        end_date: newPromo.end_date,
-      })
-
-      setNewPromo({
-        name: "",
-        value: 0,
-        start_date: "",
-        end_date: "",
-      })
-
-      setShowAddPromo(false)
-      notify.success("Promotion added")
+      onApplyPromotion(promo)
+      notify.success("Promotion applied successfully!")
     } catch (err) {
-      notify.error("Error adding promotion")
       console.error(err)
+      notify.error("Failed to apply promotion")
+    } finally {
+      setTimeout(() => setSelectedId(null), 700)
     }
   }
+
 
   const getStatusColor = (start: string, end: string): string => {
     const now = new Date()
@@ -74,92 +63,19 @@ export function PromotionsManagement({ onBack, onApplyPromotion }: PromotionsMan
           <Button variant="ghost" onClick={onBack} className="mr-4">
             ← Back to POS
           </Button>
-          <h1 className="text-xl font-semibold">Promotions Management</h1>
+          <h1 className="text-xl font-semibold">Promotions</h1>
         </div>
       </div>
 
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold">Active Promotions</h2>
-          <Dialog open={showAddPromo} onOpenChange={setShowAddPromo}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Promotion
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Add New Promotion</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Promotion Name</Label>
-                  <Input
-                    id="name"
-                    value={newPromo.name}
-                    onChange={(e) =>
-                      setNewPromo((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    placeholder="Enter promotion name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="value">Discount Percentage (%)</Label>
-                  <Input
-                    id="value"
-                    type="number"
-                    value={newPromo.value.toString()}
-                    onChange={(e) =>
-                      setNewPromo((prev) => ({
-                        ...prev,
-                        value: Number.parseInt(e.target.value) || 0,
-                      }))
-                    }
-                    placeholder="Enter discount percentage"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label htmlFor="startdate">Start Date</Label>
-                    <Input
-                      id="startdate"
-                      type="date"
-                      value={newPromo.start_date}
-                      onChange={(e) =>
-                        setNewPromo((prev) => ({
-                          ...prev,
-                          start_date: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="enddate">End Date</Label>
-                    <Input
-                      id="enddate"
-                      type="date"
-                      value={newPromo.end_date}
-                      onChange={(e) =>
-                        setNewPromo((prev) => ({
-                          ...prev,
-                          end_date: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <Button className="w-full" onClick={handleAddPromotion}>
-                  Add Promotion
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <h2 className="text-lg font-semibold">Available Promotions</h2>
+          {/* Staff không có quyền tạo promotion, vì vậy bỏ nút Add */}
         </div>
 
         {loading && (
           <div className="text-center text-muted-foreground py-4">
-            Đang tải danh sách ưu đãi...
+            Loading promotions...
           </div>
         )}
 
@@ -173,34 +89,37 @@ export function PromotionsManagement({ onBack, onApplyPromotion }: PromotionsMan
                       <Gift className="w-4 h-4 text-primary" />
                       <h3 className="font-semibold">{promo.name}</h3>
                     </div>
+
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Percent className="w-3 h-3" />
                       <span>{promo.discount_percentage}% off</span>
                     </div>
+
                     <div className="text-sm text-muted-foreground">
-                      <p>
-                        Valid: {promo.start_date} to {promo.end_date}
-                      </p>
+                      <p>Valid: {promo.start_date} to {promo.end_date}</p>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full font-medium ${getStatusColor(
+                        promo.start_date,
+                        promo.end_date
+                      )}`}
+                    >
+                      {isPromotionValid(promo) ? "Active" : "Expired / Not Yet Active"}
+                    </span>
+
                     {onApplyPromotion && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => onApplyPromotion(promo)}
+                        onClick={() => handleApply(promo)}
+                        disabled={!isPromotionValid(promo) || selectedId === promo.id}
                       >
-                        Apply
+                        {selectedId === promo.id ? "Applied" : "Apply"}
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deletePromotion(promo.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -210,13 +129,10 @@ export function PromotionsManagement({ onBack, onApplyPromotion }: PromotionsMan
 
         {!loading && promotions.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
-            No promotions found. Create your first promotion to get started!
+            No promotions found.
           </div>
         )}
       </div>
     </div>
   )
 }
-
-
-                        

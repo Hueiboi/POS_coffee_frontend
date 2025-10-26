@@ -32,28 +32,32 @@ export const throttle = <T extends (...args: any[]) => any>(
 }
 
 export function transformInvoiceData(raw: any): Invoice {
-  // 🧩 Chuẩn hoá shape data để tránh undefined
+  // Chuẩn hóa dữ liệu
   const order = raw?.order ?? raw?.data?.order ?? {}
   const itemsRaw = raw?.items ?? raw?.data?.items ?? []
 
+  // Chuẩn hóa danh sách item
   const items: InvoiceItem[] = Array.isArray(itemsRaw)
     ? itemsRaw.map((item: any) => {
-        const price = parseFloat(item.price ?? "0")
+        const price = Number(item.price ?? item.unit_price ?? 0)
         const qty = Number(item.quantity ?? 1)
         return {
           name: item.menu_name ?? item.name ?? "Unnamed item",
           quantity: qty,
           unit_price: price,
-          total: price * qty,
+          total_amount: price * qty,
         }
       })
     : []
 
-  const subtotal = items.reduce((sum, item) => sum + item.total, 0)
-  const discount = order.discount_percentage ? Number(order.discount_percentage) : 0
+  // Tính toán
+  const subtotal = items.reduce((sum, item) => sum + item.total_amount, 0)
+  const discountPercentage = Number(order.discount_percentage ?? 0)
+  const discountAmount = Math.round((subtotal * discountPercentage) / 100)
   const tax = Math.round(subtotal * 0.1)
-  const total = subtotal + tax - discount
+  const total = subtotal - discountAmount + tax
 
+  // Chuẩn hóa thông tin order
   const invoiceOrder: InvoiceOrder = {
     id: order.id ?? 0,
     order_code: order.order_code ?? "N/A",
@@ -62,10 +66,19 @@ export function transformInvoiceData(raw: any): Invoice {
     total_amount: total,
     status: order.status ?? "completed",
     promotion_id: order.promotion_id ?? null,
-    discount_percentage: discount,
+    discount_percentage: discountPercentage,
     payment_method: order.payment_method ?? "—",
-    created_by: order.staff_name || order.created_by || "Unknown", // ✅ fallback logic
+    created_by: order.staff_name || order.created_by || "Unknown",
   }
 
-  return { order: invoiceOrder, items }
+  // Trả về dữ liệu đã tính toán
+  return {
+    order: invoiceOrder,
+    items,
+    subtotal,
+    discountAmount,
+    discountPercentage,
+    tax,
+    total,
+  } as Invoice
 }

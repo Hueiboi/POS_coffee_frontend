@@ -1,25 +1,26 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { ProductMenu } from "@/components/product-menu"
 import { OrderSummary } from "@/components/order-summary"
 import { AuthModal } from "@/components/auth-modal"
 import { TableSelection } from "@/components/table-selection"
-import { InvoiceModal, InvoiceResponse } from "@/components/invoice-modal"
 import { OrderHistory } from "@/components/order-history"
 import { PromotionsManagement } from "@/components/promotions-management"
 import { Order, usePOSStore } from "@/hooks/use-pos-store"
 import { useAPI } from "@/hooks/use-api"
 import { toast } from "@/hooks/use-toast"
 import { Table } from "@/hooks/use-table-management"
-import type { Invoice, InvoiceOrder, InvoiceItem } from "@/components/invoice-modal" // Use the correct Invoice type expected by InvoiceModal
+import { Invoice, InvoiceModal } from "@/components/invoice-modal" 
 import { transformInvoiceData } from "@/lib/utils"
 import { Promotion } from "@/hooks/use-promotion"    
 import { notify } from "@/lib/notify"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function POSPage() {
-  const { post, put, get } = useAPI()
+  const { post, put } = useAPI()
+  const { logout } = useAuth()
   const {
     isAuthenticated,
     user,
@@ -37,8 +38,6 @@ export default function POSPage() {
     updateOrderItem,
     removeOrderItem,
     clearOrder,
-    login,
-    logout,
     setCurrentOrder,
     setSelectedTable,
     setAppliedPromotion,
@@ -51,55 +50,54 @@ export default function POSPage() {
   const [showTableSelection, setShowTableSelection] = useState(false)
   const [showInvoice, setShowInvoice] = useState(false)
   const [invoiceOrderId, setInvoiceOrderId] = useState<number | null>(null)
-  const [creatingOrder, setCreatingOrder] = useState(false)
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [tables, setTables] = useState<Table[]>([])
 
-  useEffect(() => {
-    const token = localStorage.getItem("token")
-    const userData = localStorage.getItem("user")
+  // Type cho payment method
+  type PaymentMethod = "cash" | "card" | "e-wallet"
 
-    console.log("POSPage token check:", token);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const userData = localStorage.getItem("user");
 
     if (token && userData) {
-      login({ token, user: JSON.parse(userData) })
-      setShowTableSelection(true)
+      // Đừng gọi login() ở đây nữa
+      setIsAuthenticated(true);
+      setShowTableSelection(true);
     } else {
-      setShowAuthModal(true)
+      setShowAuthModal(true);
     }
-  }, [login])
+  }, []);
 
-  // backend trả { status, msg, data: { access_token } }
-  const handleAuthSuccess = (data: { access_token: string }) => {
+  const handleAuthSuccess = useCallback((data: { access_token: string }) => {
     localStorage.setItem("token", data.access_token)
     setIsAuthenticated(true)
     setShowAuthModal(false)
     setShowTableSelection(true)
-  }
 
-  const handleTableSelect = (table: Table) => {
+  }, [setIsAuthenticated])
+
+  const handleTableSelect = useCallback((table: Table) => {
     setSelectedTable(table)
     setShowTableSelection(false)
     setCurrentView("pos")
-  }
+  }, [setSelectedTable, setCurrentView])
 
   const handleLogout = () => {
     logout()
+    setIsAuthenticated(false)
     setShowAuthModal(true)
     setShowTableSelection(false)
   }
 
-  const handleApplyPromotion = (promotion: Promotion) => {
+  const handleApplyPromotion = useCallback((promotion: Promotion) => {
     setAppliedPromotion(promotion)
     setCurrentView("pos")
     toast({
-      title: `✅ Promotion applied`,
+      title: `Promotion applied`,
       description: `${promotion.name} (${promotion.discount_percentage}% off)`,
     })
-  }
-
-  // Type cho payment method
-  type PaymentMethod = "cash" | "card" | "e-wallet"
+  }, [setAppliedPromotion, setCurrentView])
 
   // Authentication check
   if (!isAuthenticated) {
@@ -108,8 +106,8 @@ export default function POSPage() {
         isOpen={!isAuthenticated}
         onAuthSuccess={(data) => handleAuthSuccess(data)}
         />
-        )
-    }
+    )
+  }
 
   // Table selection
   if (showTableSelection) {
@@ -118,7 +116,10 @@ export default function POSPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Welcome to the new shift!</h1>
-            <button onClick={handleLogout} className="text-sm text-muted-foreground hover:text-foreground">
+            <button
+              onClick={handleLogout}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
               Logout
             </button>
           </div>
@@ -128,7 +129,6 @@ export default function POSPage() {
     )
   }
 
-  // Update trạng thái bàn
   // Status được giới hạn bằng Table["status"] để type-safe
   const updateTableStatus = async (tableId: number, status: Table["status"]) => {
     const result = await put(`/tables/${tableId}/status`, { status })
@@ -136,134 +136,112 @@ export default function POSPage() {
   }
 
   // Create Order
-  const createOrder = async (): Promise<Order | null> => {
-    if (!selectedTable) {
-      toast({ title: "Please select a table before ordering", variant: "destructive" })
-      return null
-    }
+  // const createOrder = async (): Promise<Order | null> => {
+  //   if (!selectedTable) {
+  //     toast({ title: "Please select a table before ordering", variant: "destructive" })
+  //     return null
+  //   }
 
-    if (creatingOrder) return null // chặn double click
-    setCreatingOrder(true)
+  //   if (creatingOrder) return null // chặn double click
+  //   setCreatingOrder(true)
 
-    try {
-      const orderData = await post<Order>("/orders", {
-        table_id: selectedTable.id,
-        order_type: "dine_in",
-        created_by: user?.staff_name || user?.username,
-        created_by_id: user?.id,
-      })
+  //   try {
+  //     const orderData = await post<Order>("/orders", {
+  //       table_id: selectedTable.id,
+  //       order_type: "dine_in",
+  //       created_by: user?.staff_name || user?.username,
+  //       created_by_id: user?.id,
+  //     })
 
-      if (orderData) {
-        setCurrentOrder(orderData)
-        await updateTableStatus(selectedTable.id, "occupied")
-        setSelectedTable((prev) =>
-          prev ? { ...prev, status: "occupied" } : null
-        )
-        toast({ title: "Order created successfully", variant: "default" })
-        return orderData
-      }
-
-      // Nếu API không có, fallback demo
-      const mockOrder: Order = {
-        id: Date.now(),
-        order_code: `ORD-${Date.now()}`,
-        table_id: selectedTable.id,
-        order_type: "dine-in",
-        status: "pending",
-      }
-      setCurrentOrder(mockOrder)
-      setSelectedTable((prev) =>
-        prev ? { ...prev, status: "occupied" } : null
-      )
-      toast({ title: "Demo order created (API unavailable)", variant: "default" })
-      return mockOrder
-    } catch (err) {
-      toast({ title: "Error while creating order", variant: "destructive" })
-      return null
-    } finally {
-      setCreatingOrder(false)
-    }
-  }
+  //     if (orderData) {
+  //       setCurrentOrder(orderData)
+  //       await updateTableStatus(selectedTable.id, "occupied")
+  //       setSelectedTable((prev) =>
+  //         prev ? { ...prev, status: "occupied" } : null
+  //       )
+  //       toast({ title: "Order created successfully", variant: "default" })
+  //       return orderData
+  //     }
   
   // Payment
   const handlePrintAndPay = async (paymentMethod: PaymentMethod, total: number) => {
-    if (!selectedTable || orderItems.length === 0) {
-      notify.error("Please select a table and add items before printing")
-      return
-    }
-
-    try {
-      let orderId = currentOrder?.id
-
-      // 1️⃣ Tạo order nếu chưa có
-      if (!orderId) {
-        const res = await post<{ data: Order }>("/orders", {
-          table_id: selectedTable.id,
-          order_type: "dine-in",
-          promotion_id: appliedPromotion?.id || null,
-          created_by: user?.staff_name || user?.username || "Unknown", // ✅ thêm
-        })
-
-        const createdOrder = res?.data
-        if (!createdOrder) throw new Error("Failed to create order")
-
-        setCurrentOrder(createdOrder)
-        orderId = createdOrder.id
-      }
-
-      // 2️⃣ Thêm món vào order
-      for (const item of orderItems) {
-        await post(`/orders/${orderId}/items`, {
-          product_id: item.id,
-          quantity: item.quantity,
-        })
-      }
-
-      // 3️⃣ Thanh toán order
-      await post(`/orders/${orderId}/pay`, {
-        payment_method: paymentMethod,
-        total_amount: total,
-        promotion_id: appliedPromotion?.id || null,
-        created_by: user?.staff_name || user?.username || "Unknown", // ✅ thêm
-      })
-
-      // 4️⃣ Lấy hóa đơn (fix lỗi undefined.items)
-      const invoiceRes = await get<{
-        status: string
-        msg: string
-        data: {
-          order: any
-          items: any[]
-        }
-      }>(`/payment/invoices/${orderId}`)
-      console.log("[Invoice raw]:", invoiceRes)
-
-      const raw = invoiceRes?.data
-      if (!raw || !raw.order || !Array.isArray(raw.items)) {
-        console.error("❌ Unexpected invoice structure:", invoiceRes)
-        throw new Error("No invoice data")
-      }
-
-      const invoiceData = transformInvoiceData(raw)
-      setInvoice(invoiceData)
-      setInvoiceOrderId(orderId)
-      setShowInvoice(true)
-
-      // 5️⃣ Cập nhật trạng thái bàn
-      await updateTableStatus(selectedTable.id, "occupied")
-      setSelectedTable((prev) => (prev ? { ...prev, status: "occupied" } : null))
-    } catch (err) {
-      notify.error("Failed to process invoice. Please try again.")
-      console.error(err)
-    }
+  if (!selectedTable || orderItems.length === 0) {
+    notify.error("Please select a table and add items before printing");
+    return;
   }
 
+  try {
+    let orderId = currentOrder?.id ?? null;
+
+    // Tạo order nếu chưa có
+    if (!orderId) {
+      const orderBody: any = {
+        table_id: selectedTable.id,
+        order_type: "dine-in",
+        created_by: user?.staff_name || user?.username || "Unknown",
+      };
+      if (appliedPromotion?.id) orderBody.promotion_id = appliedPromotion.id;
+
+      const res = await post<{ data: Order }>("/orders", orderBody);
+      orderId = res?.data?.id;
+      if (!orderId) throw new Error("Failed to create order");
+      setCurrentOrder(res.data);
+    }
+
+    // Thêm món vào order
+    for (const item of orderItems) {
+      await post(`/orders/${orderId}/items`, {
+        product_id: item.id,
+        quantity: item.quantity,
+      });
+    }
+
+    // Gửi thanh toán, nhận lại invoice trực tiếp
+    const paymentBody: any = {
+      payment_method: paymentMethod,
+      total_amount: total,
+      created_by: user?.staff_name || user?.username || "Unknown",
+    };
+    if (appliedPromotion?.id) {
+      paymentBody.promotion_id = appliedPromotion.id;
+
+    }
+
+    const paymentRes = await post<{ status: string; data: Invoice }>(`/orders/${orderId}/pay`, paymentBody);
+
+    const raw = paymentRes?.data;
+    if (!raw || !raw.items) {
+      console.error("Invoice data incomplete:", raw);
+      throw new Error("Invoice missing items");
+    }
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const invoiceData = transformInvoiceData({
+      order: raw,
+      items: raw.items
+    });
+
+    setInvoice(invoiceData);
+    setInvoiceOrderId(orderId);
+    setShowInvoice(true);
+    notify.success("Payment successful!");
+
+    // Cập nhật trạng thái bàn
+    await updateTableStatus(selectedTable.id, "occupied");
+    setSelectedTable((prev) => (prev ? { ...prev, status: "occupied" } : null));
+
+    return invoiceData
+  } catch (err) {
+    notify.error("Failed to process payment. Please try again.");
+    console.error(err);
+  }
+};
 
   // Print bill
   const handlePrintBill = async (paymentMethod: PaymentMethod, total: number) => {
     await handlePrintAndPay(paymentMethod, total)
   }
-
 
   const handleFreeTable = async (tableId: number) => {
     try {
@@ -278,10 +256,11 @@ export default function POSPage() {
           setSelectedTable({ ...selectedTable, status: "available" })
         }
         clearOrder()
+        notify.success("Clear table successfully")
       }
-    } catch (err) {
+    } catch (err: any) {
       notify.error("Failed to free table")
-      console.error(err)
+      console.error(err.message);
     }
   }
 
