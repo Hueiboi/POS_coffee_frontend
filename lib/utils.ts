@@ -33,45 +33,54 @@ export const throttle = <T extends (...args: any[]) => any>(
 
 export function transformInvoiceData(raw: any): Invoice {
   // Chuẩn hóa dữ liệu
-  const order = raw?.order ?? raw?.data?.order ?? {}
-  const itemsRaw = raw?.items ?? raw?.data?.items ?? []
+  const order = raw?.order ?? raw?.data?.order ?? {};
+  const itemsRaw = raw?.items ?? raw?.data?.items ?? [];
 
-  // Chuẩn hóa danh sách item
+  // Chuẩn hóa thông tin
   const items: InvoiceItem[] = Array.isArray(itemsRaw)
     ? itemsRaw.map((item: any) => {
-        const price = Number(item.price ?? item.unit_price ?? 0)
-        const qty = Number(item.quantity ?? 1)
+        const price = Number(item.price ?? item.unit_price ?? 0);
+        const qty = Number(item.quantity ?? 1);
         return {
           name: item.menu_name ?? item.name ?? "Unnamed item",
           quantity: qty,
           unit_price: price,
           total_amount: price * qty,
-        }
+        };
       })
-    : []
-
+    : [];
   // Tính toán
-  const subtotal = items.reduce((sum, item) => sum + item.total_amount, 0)
-  const discountPercentage = Number(order.discount_percentage ?? 0)
-  const discountAmount = Math.round((subtotal * discountPercentage) / 100)
-  const tax = Math.round(subtotal * 0.1)
-  const total = subtotal - discountAmount + tax
+  const subtotal = items.reduce((sum, item) => sum + item.total_amount, 0);
+  const discountPercentage =
+    Number(order.discount_percentage) ||
+    Number(order.promotion_discount) ||
+    Number(order.promotion?.discount_percentage) ||
+    0;
+  const discountAmount = Math.round((subtotal * discountPercentage) / 100);
 
-  // Chuẩn hóa thông tin order
+  const taxable = subtotal - discountAmount;
+  const tax = Math.round(taxable * 0.1);
+  const total = taxable + tax;
+  
+  // Chuẩn hóa item
   const invoiceOrder: InvoiceOrder = {
     id: order.id ?? 0,
     order_code: order.order_code ?? "N/A",
     table_number: order.table_number ?? "—",
     created_at: order.created_at ?? new Date().toISOString(),
-    total_amount: total,
+    total_amount: total ?? order.total_amount ?? subtotal,
     status: order.status ?? "completed",
     promotion_id: order.promotion_id ?? null,
     discount_percentage: discountPercentage,
     payment_method: order.payment_method ?? "—",
-    created_by: order.staff_name || order.created_by || "Unknown",
-  }
-
-  // Trả về dữ liệu đã tính toán
+    created_by:
+      order.staff_name ||
+      order.created_by ||
+      order.processed_by ||
+      order.user_name ||
+      "Unknown",
+  };
+  // Trả về
   return {
     order: invoiceOrder,
     items,
@@ -80,5 +89,6 @@ export function transformInvoiceData(raw: any): Invoice {
     discountPercentage,
     tax,
     total,
-  } as Invoice
+  } as Invoice;
 }
+

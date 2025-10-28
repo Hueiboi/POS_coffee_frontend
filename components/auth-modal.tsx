@@ -17,7 +17,7 @@ import { notify } from "@/lib/notify"
 interface AuthModalProps {
   isOpen: boolean
   onAuthSuccess: (
-    data: { access_token: string },
+    data: { access_token: string, user: {username: string, role: string}}
   ) => void
 }
 
@@ -60,11 +60,11 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
         const role = payload.role ;
         
         // Lưu user vào localStorage để trang POS đọc lại
-        const user = { username: usernameFromToken, role };
-        localStorage.setItem("user", JSON.stringify(user));
+        const userObj = { username: usernameFromToken, role };
+        localStorage.setItem("user", JSON.stringify(userObj));
 
         // Gọi callback để LoginPage nhận biết login xong
-        onAuthSuccess({ access_token });
+        onAuthSuccess({ access_token, user: userObj });
 
         notify.success("Login successful!");
       } else {
@@ -172,14 +172,6 @@ export function AuthModal({ isOpen, onAuthSuccess }: AuthModalProps) {
             )}
           </Button>
         </form>
-
-        {/* <Alert className="bg-coffee-cream border-coffee-light">
-          <AlertCircle className="h-4 w-4 text-coffee-brown" />
-          <AlertDescription className="text-coffee-brown text-xs">
-            <strong>Demo Mode:</strong> Enter any username and password to continue. Use "admin" in username for admin
-            access.
-          </AlertDescription>
-        </Alert> */}
       </DialogContent>
     </Dialog>
   )

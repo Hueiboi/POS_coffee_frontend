@@ -1,5 +1,5 @@
 // hooks/api-client.ts
-
+// hooks/api-client.ts
 const BASE_URL = "http://localhost:3000/api";
 
 export async function apiRequest<T>(
@@ -7,20 +7,28 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   // Lấy token trực tiếp từ localStorage mỗi khi gọi API
-  const token = localStorage.getItem("token");
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  // Merge headers an toàn
+  const defaultHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const givenHeaders = (options.headers || {}) as Record<string, string>;
+  const headers = {
+    ...defaultHeaders,
+    ...givenHeaders,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
+    headers,
   });
 
-  // Token hết hạn → thử refresh
-  if (response.status === 403) {
-    const refresh = localStorage.getItem("refresh_token");
+  // Token hết hạn → thử refresh (server trả 401 hoặc 403 tùy impl)
+  if (response.status === 401 || response.status === 403) {
+    const refresh = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
     if (refresh) {
       const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
         method: "POST",
@@ -30,17 +38,22 @@ export async function apiRequest<T>(
 
       if (refreshRes.ok) {
         const newData = await refreshRes.json();
-        const newToken = newData.data.access_token;
-        localStorage.setItem("token", newToken);
-
-        // Gọi lại API vừa bị lỗi bằng token mới
-        return apiRequest<T>(endpoint, options);
+        const newToken = newData?.data?.access_token;
+        if (newToken) {
+          localStorage.setItem("token", newToken);
+          // Gọi lại API vừa bị lỗi bằng token mới
+          return apiRequest<T>(endpoint, options);
+        }
       } else {
-        console.warn("Refresh token expired, logging out...");
+        console.warn("Refresh token expired, clearing tokens.");
         localStorage.removeItem("token");
         localStorage.removeItem("refresh_token");
         throw new Error("Session expired");
       }
+    } else {
+      // Không có refresh token
+      localStorage.removeItem("token");
+      throw new Error("Unauthorized");
     }
   }
 
@@ -51,7 +64,8 @@ export async function apiRequest<T>(
     throw new Error(`[HTTP ${response.status}] ${errorText}`);
   }
 
-  // ✅ Trả về JSON
+  // Trả về JSON
   const data = await response.json();
   return data as T;
 }
+

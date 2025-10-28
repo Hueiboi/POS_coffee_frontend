@@ -254,26 +254,26 @@ và được cập nhật qua hook, đảm bảo UI luôn đồng bộ logic.
 - Thiếu route riêng cho FreeTable
 
 ### Lỗi render bill cũ khi ấn printBill mới
-Khi người dùng ấn Print Bill, đôi khi:
+* Khi người dùng ấn Print Bill, đôi khi:
 Bill in ra lại là hóa đơn cũ (không phải bill mới nhất vừa thanh toán),
 Hoặc phải chờ vài phút sau bill mới xuất hiện chính xác.
 Điều này xảy ra ngay cả khi dữ liệu trong database đã đúng.
 
-💡 Nguyên nhân gốc rễ
-React render không đồng bộ (asynchronous).
+1. Nguyên nhân gốc rễ
+- React render không đồng bộ (asynchronous).
 Khi bạn gọi:
 setInvoice(newInvoice);
 window.print();
 → React chưa kịp cập nhật DOM với dữ liệu mới (newInvoice).
 → Lệnh window.print() in snapshot DOM cũ (bill trước đó).
-Tình huống này phổ biến khi:
+- Tình huống này phổ biến khi:
 Giao diện sử dụng Modal/Dialog để hiển thị hóa đơn.
 setState được gọi ngay trước window.print().
 Có animation hoặc transition khiến DOM chưa render kịp.
 
-✅ Giải pháp: Chờ UI “paint” xong rồi mới in
+2. Giải pháp: Chờ UI “paint” xong rồi mới in
 Thêm đoạn helper sau:
-
+```jsx
 // utils/waitForPaint.ts
 export const waitForPaint = () =>
   new Promise<void>((resolve) => {
@@ -283,7 +283,7 @@ export const waitForPaint = () =>
     // fallback nếu browser không hỗ trợ requestAnimationFrame đúng
     setTimeout(() => resolve(), 500);
   });
-
+```
 
 Sau đó, dùng trong file invoice-modal.tsx hoặc component in bill:
 ```jsx
@@ -307,16 +307,15 @@ const handleInternalPrint = async () => {
   }
 };
 ```
-🔍 Giải thích hoạt động
+3. Giải thích hoạt động
 Bước	Cơ chế	Ý nghĩa
 requestAnimationFrame	Đợi browser render 1 frame tiếp theo	Cho phép DOM cập nhật state mới
 Gọi 2 lần liên tiếp	Đảm bảo React commit + browser paint hoàn tất	Tránh in nội dung chưa vẽ xong
 setTimeout(500)	Fallback cho browser cũ	Đảm bảo không bị treo
 
-Kết quả:
-🟢 Bill được in ngay lập tức và chính xác, không còn in bill cũ hoặc chậm vài phút nữa.
-
-🧠 Gợi ý mở rộng (tái sử dụng)
+=> Kết quả:
+- Bill được in ngay lập tức và chính xác, không còn in bill cũ hoặc chậm vài phút nữa.
+- Gợi ý mở rộng (tái sử dụng)
 
 Bạn có thể tạo custom hook usePrint để dùng lại ở nhiều nơi:
 ```jsx
@@ -345,10 +344,34 @@ export function usePrint() {
 const { printElement } = usePrint();
 await printElement(() => setInvoice(newData));
 ```
-✅ Kết luận
+4. Kết luận
 Nguyên nhân:
 window.print() được gọi trước khi React cập nhật DOM mới → in dữ liệu cũ.
 Giải pháp:
 Thêm hàm waitForPaint() để đảm bảo UI render xong trước khi in.
 Kết quả:
 Hóa đơn in luôn đúng, không delay, không lệch dữ liệu giữa order và payment.
+
+### Lỗi Auth, khá nghiêm trọng vì flow dài
+- [README-AUTH](./README_AUTH.md)
+
+### Hiểu thêm về cơ chế truyền trong REACT
+- Trong React, component con không import trực tiếp hàm của cha,
+mà cha truyền xuống con qua props.
+```jsx
+// Parent
+function POSPage() {
+  const handlePrintAndPay = (method, total) => console.log("Paying:", method, total)
+
+  return <OrderSummary onPrintBill={handlePrintAndPay} />
+}
+
+// Child
+function OrderSummary({ onPrintBill }) {
+  return (
+    <button onClick={() => onPrintBill("cash", 50000)}>
+      Print invoice
+    </button>
+  )
+}
+```

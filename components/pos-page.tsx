@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { ProductMenu } from "@/components/product-menu"
 import { OrderSummary } from "@/components/order-summary"
@@ -52,6 +53,7 @@ export default function POSPage() {
   const [invoiceOrderId, setInvoiceOrderId] = useState<number | null>(null)
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [tables, setTables] = useState<Table[]>([])
+  const router = useRouter()
 
   // Type cho payment method
   type PaymentMethod = "cash" | "card" | "e-wallet"
@@ -61,21 +63,71 @@ export default function POSPage() {
     const userData = localStorage.getItem("user");
 
     if (token && userData) {
-      // Đừng gọi login() ở đây nữa
-      setIsAuthenticated(true);
-      setShowTableSelection(true);
+      try {
+        // ưu tiên lấy role từ userData (stringified) nếu có, fallback decode token
+        const parsedUser = JSON.parse(userData);
+        const roleFromUser = parsedUser?.role;
+        let role = roleFromUser;
+
+        if (!role) {
+          try {
+            const payload = JSON.parse(atob(token.split(".")[1] || ""));
+            role = payload?.role;
+          } catch (e) {
+            console.warn("Cannot decode token payload", e);
+          }
+        }
+
+        if (role === "admin") {
+          // Nếu admin nhưng đang mở route POS thì điều hướng admin về /admin
+          router.push("/admin");
+          return;
+        }
+
+        // staff flow: đảm bảo store biết là đã auth
+        setIsAuthenticated(true);
+        // nếu store có method setUser hoặc login, dùng nó (nếu không có thì user có thể đọc từ localStorage khi cần)
+        setShowTableSelection(true);
+      } catch (err) {
+        console.warn("Invalid user data in localStorage", err);
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        setShowAuthModal(true);
+      }
     } else {
       setShowAuthModal(true);
     }
-  }, []);
+  }, [router, setIsAuthenticated]);
 
   const handleAuthSuccess = useCallback((data: { access_token: string }) => {
-    localStorage.setItem("token", data.access_token)
-    setIsAuthenticated(true)
-    setShowAuthModal(false)
-    setShowTableSelection(true)
+    try {
+      const payload = JSON.parse(atob(data.access_token.split(".")[1]));
+      const role = payload?.role;
+      const user = {
+        id: payload?.user_id ?? null,
+        username: payload?.username || "Unknown",
+        role,
+      };
 
-  }, [setIsAuthenticated])
+      // Lưu token + user
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      if (role === "admin") {
+        // redirect admin -> admin area
+        router.push("/admin");
+        return;
+      }
+
+      // staff: open table selection
+      setIsAuthenticated(true);
+      setShowAuthModal(false);
+      setShowTableSelection(true);
+    } catch (err) {
+      console.error("Invalid token in handleAuthSuccess:", err);
+      notify.error("Login failed (invalid token).");
+    }
+  }, [setIsAuthenticated, router]);
 
   const handleTableSelect = useCallback((table: Table) => {
     setSelectedTable(table)
@@ -165,81 +217,114 @@ export default function POSPage() {
   
   // Payment
   const handlePrintAndPay = async (paymentMethod: PaymentMethod, total: number) => {
-  if (!selectedTable || orderItems.length === 0) {
-    notify.error("Please select a table and add items before printing");
-    return;
-  }
+    if (!selectedTable || orderItems.length === 0) {
+      notify.error("Please select a table and add items before printing");
+      return;
+    }
 
-  try {
-    let orderId = currentOrder?.id ?? null;
+    try {
+      let orderId = currentOrder?.id ?? null;
 
-    // Tạo order nếu chưa có
-    if (!orderId) {
-      const orderBody: any = {
-        table_id: selectedTable.id,
-        order_type: "dine-in",
+      // Tạo order nếu chưa có
+      if (!orderId) {
+        const orderBody: any = {
+          table_id: selectedTable.id,
+          order_type: "dine-in",
+          created_by: user?.staff_name || user?.username || "Unknown",
+        };
+        if (appliedPromotion?.id) orderBody.promotion_id = appliedPromotion.id;
+
+        const res = await post<{ data: Order }>("/orders", orderBody);
+        orderId = res?.data?.id;
+        if (!orderId) throw new Error("Failed to create order");
+        setCurrentOrder(res.data);
+      }
+
+      // Thêm món vào order
+      for (const item of orderItems) {
+        await post(`/orders/${orderId}/items`, {
+          product_id: item.id,
+          quantity: item.quantity,
+        });
+      }
+
+      // Gửi thanh toán, nhận lại invoice trực tiếp
+      const paymentBody: any = {
+        payment_method: paymentMethod,
+        total_amount: total,
         created_by: user?.staff_name || user?.username || "Unknown",
       };
-      if (appliedPromotion?.id) orderBody.promotion_id = appliedPromotion.id;
+      if (appliedPromotion?.id) {
+        paymentBody.promotion_id = appliedPromotion.id;
 
-      const res = await post<{ data: Order }>("/orders", orderBody);
-      orderId = res?.data?.id;
-      if (!orderId) throw new Error("Failed to create order");
-      setCurrentOrder(res.data);
-    }
+      }
 
-    // Thêm món vào order
-    for (const item of orderItems) {
-      await post(`/orders/${orderId}/items`, {
-        product_id: item.id,
-        quantity: item.quantity,
+      const paymentRes = await post<{ status: string; data: Invoice }>(`/orders/${orderId}/pay`, paymentBody);
+
+      const raw = paymentRes?.data;
+      if (!raw || !raw.items) {
+        console.error("Invoice data incomplete:", raw);
+        throw new Error("Invoice missing items");
+      }
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      const invoiceData = transformInvoiceData({
+        order: raw,
+        items: raw.items
       });
+
+      setInvoice(invoiceData);
+      setInvoiceOrderId(orderId);
+      setShowInvoice(true);
+      notify.success("Payment successful!");
+
+      // Cập nhật trạng thái bàn
+      await updateTableStatus(selectedTable.id, "occupied");
+      setSelectedTable((prev) => (prev ? { ...prev, status: "occupied" } : null));
+
+      return invoiceData
+    } catch (err) {
+      notify.error("Payment has been processed. Please try with another order.");
+      console.error(err);
+    }
+  };
+
+  // Print bill — accepts optional paymentData returned by OrderSummary/processPayment
+  const handlePrintBill = async (
+    paymentMethod: PaymentMethod,
+    total: number,
+    paymentData?: any
+  ) => {
+    // Nếu parent (OrderSummary) đã gọi processPayment() và trả về paymentData,
+    // thì dùng nó để open invoice modal ngay — tránh gọi API 2 lần.
+    if (paymentData) {
+      try {
+        // transformInvoiceData expects shape { order, items }
+        const invoiceData = transformInvoiceData({
+          order: paymentData,
+          items: paymentData.items || [],
+        })
+
+        setInvoice(invoiceData)
+        setInvoiceOrderId(paymentData.id ?? invoiceData.order.id ?? null)
+        setShowInvoice(true)
+        notify.success("Payment successful!")
+        clearOrder()
+        // Optionally update table status (depends on app logic)
+        if (selectedTable) {
+          await updateTableStatus(selectedTable.id, "occupied")
+          setSelectedTable((prev) => (prev ? { ...prev, status: "occupied" } : null))
+        }
+      } catch (err) {
+        console.error("Failed to open invoice from paymentData:", err)
+        // fallback: perform full flow
+        await handlePrintAndPay(paymentMethod, total)
+      }
+      return
     }
 
-    // Gửi thanh toán, nhận lại invoice trực tiếp
-    const paymentBody: any = {
-      payment_method: paymentMethod,
-      total_amount: total,
-      created_by: user?.staff_name || user?.username || "Unknown",
-    };
-    if (appliedPromotion?.id) {
-      paymentBody.promotion_id = appliedPromotion.id;
-
-    }
-
-    const paymentRes = await post<{ status: string; data: Invoice }>(`/orders/${orderId}/pay`, paymentBody);
-
-    const raw = paymentRes?.data;
-    if (!raw || !raw.items) {
-      console.error("Invoice data incomplete:", raw);
-      throw new Error("Invoice missing items");
-    }
-
-    await new Promise((r) => setTimeout(r, 200));
-
-    const invoiceData = transformInvoiceData({
-      order: raw,
-      items: raw.items
-    });
-
-    setInvoice(invoiceData);
-    setInvoiceOrderId(orderId);
-    setShowInvoice(true);
-    notify.success("Payment successful!");
-
-    // Cập nhật trạng thái bàn
-    await updateTableStatus(selectedTable.id, "occupied");
-    setSelectedTable((prev) => (prev ? { ...prev, status: "occupied" } : null));
-
-    return invoiceData
-  } catch (err) {
-    notify.error("Failed to process payment. Please try again.");
-    console.error(err);
-  }
-};
-
-  // Print bill
-  const handlePrintBill = async (paymentMethod: PaymentMethod, total: number) => {
+    // Nếu không có paymentData, fallback về flow cũ (POSPage tạo order + gọi API)
     await handlePrintAndPay(paymentMethod, total)
   }
 

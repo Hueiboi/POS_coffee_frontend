@@ -59,7 +59,6 @@ export interface InvoiceModalProps {
 export function InvoiceModal({
   isOpen,
   onClose,
-  orderId,
   invoice: parentInvoice,
   handlePrint,
   user,
@@ -74,9 +73,9 @@ export function InvoiceModal({
   }, [parentInvoice])
 
   const noInvoice = !invoice || !invoice.order
-  const total = Number(invoice?.order.total_amount || 0)
-  const tax = Math.round(total * 10 / 110) // = total * (10/110) = subtotal*0.1
-  const subtotal = total - tax
+  const total = invoice?.total ?? invoice?.order.total_amount ?? 0
+  const subtotal = invoice?.subtotal ?? total / 1.1
+  const tax = invoice?.tax ?? subtotal * 0.1
 
   const waitForPaint = () =>
     new Promise<void>((resolve) => {
@@ -220,13 +219,16 @@ export function InvoiceModal({
                     <span>{formatCurrency(invoice.subtotal)}</span>
                   </div>
 
-                  {invoice.discountPercentage > 0 && (
+                  {invoice.discountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
-                      <span>Discount ({invoice.order.discount_percentage}%):</span>
+                      <span>
+                        Discount
+                        {invoice.discountPercentage ? ` (${invoice.discountPercentage}%)` : ""}
+                        :
+                      </span>
                       <span>-{formatCurrency(invoice.discountAmount)}</span>
                     </div>
                   )}
-
                   <div className="flex justify-between text-muted-foreground">
                     <span>Tax (10%):</span>
                     <span>{formatCurrency(invoice.tax)}</span>
@@ -241,7 +243,7 @@ export function InvoiceModal({
 
                   <div className="flex justify-between items-center text-sm pt-2">
                     <span>Payment Method:</span>
-                    <span className="capitalize font-medium">{invoice.order.payment_method}</span>
+                    <span className="capitalize font-medium">{invoice.order.payment_method || "—"}</span>
                   </div>
                 </div>
               </CardContent>

@@ -19,18 +19,32 @@ export function usePayment() {
   const { post } = useAPI()
 
   const processPayment = useCallback(
-    async (orderId: number, paymentMethod: string, amount: number, promotionCode?: string, discountAmount?: number) => {
-      const paymentData = await post(`/orders/${orderId}/pay`, {
+  async (
+    orderId: number,
+    paymentMethod: string,
+    amount: number,
+    promotionCode?: string,
+    discountAmount?: number,
+    user?: { username: string }
+  ) => {
+    try {
+      const res = await post(`/orders/${orderId}/pay`, {
         payment_method: paymentMethod,
         amount_paid: amount,
         promotion_code: promotionCode,
         discount_amount: discountAmount,
+        processed_by: user?.username || "Unknown",
       })
 
-      return !!paymentData
-    },
-    [post],
-  )
+      console.log("Res result: ", res)
+      return res
+    } catch (error) {
+      console.error("Payment failed:", error)
+      return null
+    }
+  },
+  [post],
+)
 
   return {
     paymentMethods,

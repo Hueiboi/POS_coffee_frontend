@@ -9,19 +9,20 @@ import { Minus, Plus, Trash2 } from "lucide-react"
 import type { OrderItem, Order } from "@/hooks/use-pos-store"
 import { useOrderCalculations } from "@/hooks/use-order-calculations"
 import type { Promotion } from "@/hooks/use-promotion"
+import { useAuth } from "@/hooks/use-auth"
 import { useCurrency } from "@/hooks/use-currency"
 import { PaymentMethod, usePayment } from "@/hooks/use-payment"
 import { cn } from "@/lib/utils"
 import { Table } from "@/types"
 import { notify } from "@/lib/notify"
 
-
 interface OrderSummaryProps {
   items: OrderItem[]
   onUpdateItem: (index: number, updates: Partial<OrderItem>) => void
   onRemoveItem: (index: number) => void
   onClearOrder: () => void
-  onPrintBill: (paymentMethod: "cash" | "card" | "e-wallet", total: number) => void
+  // onPrintBill now can receive paymentData returned by processPayment
+  onPrintBill: (paymentMethod: "cash" | "card" | "e-wallet", total: number) => Promise<void> // Hàm bất đồng bộ => trả về 1 Promise cho phép await
   handleFreeTable: (tableId: number) => void
   currentOrder: Order | null
   selectedTable: Table | null
@@ -45,9 +46,19 @@ export function OrderSummary({
 }: OrderSummaryProps) {
   const { subtotal, tax, discount, total } = useOrderCalculations(items, appliedPromotion)
   const { formatCurrency } = useCurrency()
-  const { paymentMethods } = usePayment()
+  const { paymentMethods, processPayment } = usePayment()
+  const { user } = useAuth() // lấy người dùng hiện tại
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null)
 
+  const handlePrintInvoice = async () => {
+    if (!selectedPaymentMethod) {
+      notify.error("Please select a payment method");
+      return;
+    }
+
+    // Gọi callback từ POSPage (handlePrintAndPay)
+    await onPrintBill(selectedPaymentMethod.id as "cash" | "card" | "e-wallet", total);
+  };
 
   const handleQuantityChange = (index: number, change: number) => {
     const newQuantity = items[index].quantity + change
@@ -233,13 +244,7 @@ export function OrderSummary({
           {/* Action Buttons */}
           <div className="space-y-2">
           <Button
-            onClick={() => {
-              if (!selectedPaymentMethod) {
-                notify.error("Please select a payment method")
-                return
-              }
-              onPrintBill(selectedPaymentMethod.id as "cash" | "card" | "e-wallet", total)
-            }}
+            onClick={handlePrintInvoice}
             className={cn("w-full transition-all duration-200", "hover:scale-105 active:scale-95")}
           >
             Print invoice
